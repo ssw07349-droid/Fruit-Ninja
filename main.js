@@ -1,14 +1,21 @@
-{
-  "name": "fruit-ninja-game",
-  "version": "1.0.0",
-  "main": "main.js",
-  "scripts": {
-    "start": "electron .",
-    "make": "electron-forge make"
-  },
-  "devDependencies": {
-    "@electron-forge/cli": "^7.5.0",
-    "@electron-forge/maker-squirrel": "^7.5.0",
-    "electron": "^31.0.0"
-  }
+const { app, BrowserWindow } = require('electron');
+const path = require('path');
+
+function createWindow () {
+  const win = new BrowserWindow({
+    width: 1000,
+    height: 700,
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false
+    }
+  });
+
+  win.loadFile('fruit_ninja_game (1).html'); 
 }
+
+app.whenReady().then(createWindow);
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
