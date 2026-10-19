@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fruit Ninja - Epik Dojo Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;700&family=Yuji+Mai&display=swap');
+
+        body {
+            font-family: 'Teko', sans-serif;
+            background: #0f0a0a;
+            color: #fff;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        .dojo-bg {
+            background: radial-gradient(circle at center, #2c1a1d 0%, #110809 70%, #050203 100%);
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            cursor: crosshair;
+        }
+
+        .glass-panel {
+            background: rgba(26, 15, 18, 0.88);
+            backdrop-filter: blur(16px);
+            border: 2px solid rgba(234, 179, 8, 0.4);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.8);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(10px);
+        }
+
+        /* Rarity Borders & Colors */
+        .rarity-common { border-color: #9ca3af; background: radial-gradient(circle, rgba(156,163,175,0.15) 0%, transparent 80%); }
+        .rarity-uncommon { border-color: #22c55e; background: radial-gradient(circle, rgba(34,197,94,0.15) 0%, transparent 80%); }
+        .rarity-rare { border-color: #3b82f6; background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 80%); }
+        .rarity-epic { border-color: #a855f7; background: radial-gradient(circle, rgba(168,85,247,0.15) 0%, transparent 80%); }
+        .rarity-legendary { border-color: #eab308; background: radial-gradient(circle, rgba(234,179,8,0.25) 0%, transparent 80%); }
+        .rarity-mythic { border-color: #ec4899; background: radial-gradient(circle, rgba(236,72,153,0.3) 0%, transparent 80%); }
+
+        .btn-blade {
+            position: relative;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            overflow: hidden;
+        }
+
+        .btn-blade:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 0 25px rgba(234, 179, 8, 0.5);
+        }
+
+        .btn-blade:active {
+            transform: translateY(1px) scale(0.98);
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(234, 179, 8, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(234, 179, 8, 0.8);
+        }
+    </style>
+</head>
+<body class="dojo-bg w-screen h-screen overflow-hidden">
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="hud" class="fixed top-0 left-0 w-full p-4 pointer-events-none flex justify-between items-start z-10 hidden">
+        <div class="flex items-center gap-4 md:gap-6">
+            <!-- Score Container -->
+            <div class="glass-card px-5 py-2 rounded-2xl flex items-center gap-3">
+                <i class="fa-solid fa-trophy text-amber-400 text-3xl"></i>
+                <div>
+                    <div class="text-xs text-amber-200 uppercase tracking-widest font-sans font-semibold">Ochko</div>
+                    <div id="scoreText" class="text-4xl font-bold text-amber-400 leading-none">0</div>
+                </div>
+            </div>
+
+            <!-- Mode Indicator -->
+            <div class="glass-card px-4 py-2 rounded-2xl hidden md:block">
+                <div class="text-xs text-neutral-400 uppercase tracking-widest font-sans font-semibold">Rejim</div>
+                <div id="modeText" class="text-2xl font-bold text-red-400 leading-none">Klassik</div>
+            </div>
+
+            <!-- Lives / Hearts Container (Classic Mode) -->
+            <div id="livesContainer" class="glass-card px-4 py-2 rounded-2xl flex items-center gap-2 border border-red-500/30">
+                <i class="fa-solid fa-heart text-red-500 text-2xl heart-1 animate-pulse"></i>
+                <i class="fa-solid fa-heart text-red-500 text-2xl heart-2 animate-pulse"></i>
+                <i class="fa-solid fa-heart text-red-500 text-2xl heart-3 animate-pulse"></i>
+            </div>
+
+            <!-- Timer (for Zen / Arcade) -->
+            <div id="timerContainer" class="glass-card px-5 py-2 rounded-2xl hidden items-center gap-3">
+                <i class="fa-solid fa-hourglass-half text-cyan-400 text-2xl animate-spin"></i>
+                <div>
+                    <div class="text-xs text-cyan-200 uppercase tracking-widest font-sans font-semibold">Vaqt</div>
+                    <div id="timerText" class="text-3xl font-bold text-cyan-400 leading-none">90s</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4 pointer-events-auto">
+            <!-- Music Track Selector Widget -->
+            <div class="glass-card px-3 py-2 rounded-2xl hidden lg:flex items-center gap-2">
+                <i class="fa-solid fa-music text-pink-400 text-lg animate-pulse"></i>
+                <select id="musicTrackSelect" onchange="changeMusicTrack(this.value)" class="bg-transparent text-amber-200 text-xs font-bold outline-none cursor-pointer">
+                    <option value="epic" class="bg-neutral-900">Epik Dojo Beat</option>
+                    <option value="cyber" class="bg-neutral-900">Cyber Ninja</option>
+                    <option value="zen" class="bg-neutral-900">Zen Garden</option>
+                    <option value="samurai" class="bg-neutral-900">Samuray Barabani</option>
+                    <option value="retro" class="bg-neutral-900">8-Bit Retro Arcade</option>
+                </select>
+            </div>
+
+            <!-- Coins Badge -->
+            <div class="glass-card px-4 py-2 rounded-2xl flex items-center gap-2 border border-amber-500/40">
+                <i class="fa-solid fa-coins text-amber-400 text-xl"></i>
+                <span id="coinCountHUD" class="text-2xl font-bold text-amber-300">0</span>
+            </div>
+
+            <!-- Menu Button -->
+            <button onclick="showMenu()" class="glass-card hover:bg-white/10 w-12 h-12 rounded-2xl flex items-center justify-center text-xl text-amber-400 transition-all border border-amber-500/30 active:scale-95">
+                <i class="fa-solid fa-house"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="mainMenu" class="fixed inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-md">
+        <div class="glass-panel p-8 md:p-10 rounded-3xl max-w-lg w-full mx-4 text-center border-amber-500/40 relative overflow-hidden">
+            <div class="absolute -top-10 -left-10 w-40 h-40 bg-red-600/20 rounded-full blur-3xl"></div>
+            <div class="absolute -bottom-10 -right-10 w-40 h-40 bg-amber-600/20 rounded-full blur-3xl"></div>
+
+            <h1 class="text-6xl md:text-7xl font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-red-500 to-amber-200 drop-shadow-lg mb-1">
+                FRUIT NINJA
+            </h1>
+            <p class="text-amber-200/80 font-sans text-sm tracking-widest uppercase mb-8">Epik Dojo & Yuqori Sifatli Katana Do'koni</p>
+
+            <div class="space-y-3 mb-8">
+                <button onclick="startGame('classic')" class="btn-blade w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-red-600 to-rose-700 text-white font-bold text-2xl tracking-widest shadow-lg flex items-center justify-between group">
+                    <span class="flex items-center gap-3">
+                        <i class="fa-solid fa-heart-pulse text-red-300 group-hover:scale-125 transition-transform"></i>
+                        Klassik Rejim (3 Jon)
+                    </span>
+                    <i class="fa-solid fa-chevron-right text-lg text-red-200"></i>
+                </button>
+
+                <button onclick="startGame('zen')" class="btn-blade w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-700 text-white font-bold text-2xl tracking-widest shadow-lg flex items-center justify-between group">
+                    <span class="flex items-center gap-3">
+                        <i class="fa-solid fa-yin-yang text-cyan-300 group-hover:rotate-180 transition-transform duration-500"></i>
+                        Zen Rejim (90 Soniya)
+                    </span>
+                    <i class="fa-solid fa-chevron-right text-lg text-cyan-200"></i>
+                </button>
+
+                <button onclick="startGame('arcade')" class="btn-blade w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-700 text-white font-bold text-2xl tracking-widest shadow-lg flex items-center justify-between group">
+                    <span class="flex items-center gap-3">
+                        <i class="fa-solid fa-bolt text-purple-300 group-hover:scale-125 transition-transform"></i>
+                        Arcade Rejim (60 Soniya)
+                    </span>
+                    <i class="fa-solid fa-chevron-right text-lg text-purple-200"></i>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <button onclick="openShop()" class="btn-blade flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-700 text-white font-bold text-xl tracking-wider shadow-lg flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-store text-amber-200"></i>
+                    Katana Do'koni
+                </button>
+                <div class="glass-card px-4 py-3 rounded-2xl flex items-center gap-2 border border-amber-500/30">
+                    <i class="fa-solid fa-coins text-amber-400 text-xl"></i>
+                    <span id="coinCountMenu" class="text-xl font-bold text-amber-300">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="shopModal" class="fixed inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-lg hidden">
+        <div class="glass-panel p-6 md:p-8 rounded-3xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col border-amber-500/40 relative">
+            <div class="flex items-center justify-between pb-4 border-b border-amber-500/20 mb-4">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-wand-magic-sparkles text-amber-400 text-3xl"></i>
+                    <div>
+                        <h2 class="text-3xl font-bold text-amber-400 leading-none">Katana va Qilichlar Do'koni</h2>
+                        <p class="text-xs text-neutral-400 font-sans">Yuqori detallashuvga ega afsonaviy katana skinlarini tanlang</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <div class="glass-card px-4 py-1.5 rounded-xl flex items-center gap-2 border border-amber-500/30">
+                        <i class="fa-solid fa-coins text-amber-400 text-lg"></i>
+                        <span id="coinCountShop" class="text-xl font-bold text-amber-300">0</span>
+                    </div>
+                    <button onclick="closeShop()" class="w-10 h-10 rounded-xl glass-card hover:bg-white/10 flex items-center justify-center text-amber-400 text-xl transition-all">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 overflow-x-auto pb-3 mb-4 font-sans text-xs">
+                <button onclick="filterShop('all', event)" class="shop-tab active px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-300 font-bold whitespace-nowrap">Barchasi</button>
+                <button onclick="filterShop('common', event)" class="shop-tab px-3 py-1.5 rounded-xl bg-gray-500/20 border border-gray-500/40 text-gray-300 font-bold whitespace-nowrap">Common</button>
+                <button onclick="filterShop('uncommon', event)" class="shop-tab px-3 py-1.5 rounded-xl bg-green-500/20 border border-green-500/40 text-green-300 font-bold whitespace-nowrap">Uncommon</button>
+                <button onclick="filterShop('rare', event)" class="shop-tab px-3 py-1.5 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-300 font-bold whitespace-nowrap">Rare</button>
+                <button onclick="filterShop('epic', event)" class="shop-tab px-3 py-1.5 rounded-xl bg-purple-500/20 border border-purple-500/40 text-purple-300 font-bold whitespace-nowrap">Epic</button>
+                <button onclick="filterShop('legendary', event)" class="shop-tab px-3 py-1.5 rounded-xl bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 font-bold whitespace-nowrap">Legendary</button>
+                <button onclick="filterShop('mythic', event)" class="shop-tab px-3 py-1.5 rounded-xl bg-pink-500/20 border border-pink-500/40 text-pink-300 font-bold whitespace-nowrap">Mythic</button>
+            </div>
+
+            <div id="shopGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto pr-2 flex-1"></div>
+        </div>
+    </div>
+
+    <div id="gameOverModal" class="fixed inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-lg hidden">
+        <div class="glass-panel p-8 rounded-3xl max-w-md w-full mx-4 text-center border-amber-500/40">
+            <h2 id="gameOverTitle" class="text-5xl font-bold text-amber-400 mb-2">O'YIN TUGADI!</h2>
+            <p id="gameOverSub" class="text-neutral-400 font-sans text-sm mb-6">Ajoyib natija! Sening jangovar maxorating:</p>
+
+            <div class="glass-card p-4 rounded-2xl mb-6 space-y-3">
+                <div class="flex justify-between items-center text-xl">
+                    <span class="text-neutral-400 font-sans">Yig'ilgan Ochko:</span>
+                    <span id="finalScore" class="font-bold text-amber-400 text-3xl">0</span>
+                </div>
+                <div class="flex justify-between items-center text-xl border-t border-white/10 pt-2">
+                    <span class="text-neutral-400 font-sans">Topilgan Tangalar:</span>
+                    <span id="finalCoins" class="font-bold text-amber-300 text-2xl flex items-center gap-2">
+                        <i class="fa-solid fa-coins text-amber-400 text-lg"></i> +0
+                    </span>
+                </div>
+            </div>
+
+            <div class="flex gap-4">
+                <button onclick="restartGame()" class="btn-blade flex-1 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-700 text-white font-bold text-xl">
+                    Qaytadan
+                </button>
+                <button onclick="showMenu()" class="btn-blade flex-1 py-3 rounded-2xl bg-gradient-to-r from-neutral-700 to-neutral-900 text-white font-bold text-xl">
+                    Menyu
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+                this.bgMusicPlaying = false;
+                this.bgMusicTimer = null;
+                this.currentTrack = 'epic';
+
+                this.pentatonicScale = [146.83, 155.56, 196.00, 220.00, 261.63, 293.66, 311.13, 392.00, 440.00, 523.25];
+                this.cyberScale = [220.00, 246.94, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33];
+                this.zenScale = [196.00, 220.00, 261.63, 293.66, 329.63, 392.00];
+                this.samuraiScale = [130.81, 146.83, 174.61, 196.00, 220.00, 261.63, 293.66];
+                this.retroScale = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99];
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            startBgMusic() {
+                this.init();
+                if (this.bgMusicPlaying) return;
+                this.bgMusicPlaying = true;
+                
+                let beat = 0;
+                const playBeat = () => {
+                    if (!this.bgMusicPlaying) return;
+                    if (!this.muted && this.ctx) {
+                        const now = this.ctx.currentTime;
+                        
+                        if (this.currentTrack === 'epic') {
+                            if (beat % 2 === 0) {
+                                const osc = this.ctx.createOscillator();
+                                const gain = this.ctx.createGain();
+                                osc.type = 'sine';
+                                osc.frequency.setValueAtTime(beat % 4 === 0 ? 90 : 55, now);
+                                osc.frequency.exponentialRampToValueAtTime(20, now + 0.2);
+                                gain.gain.setValueAtTime(0.7, now);
+                                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                                osc.connect(gain);
+                                gain.connect(this.ctx.destination);
+                                osc.start(now);
+                                osc.stop(now + 0.2);
+                            }
+
+                            if (beat % 2 === 1 || Math.random() < 0.4) {
+                                const scale = this.pentatonicScale;
+                                const noteFreq = scale[Math.floor(Math.random() * scale.length)];
+                                const osc = this.ctx.createOscillator();
+                                const gain = this.ctx.createGain();
+                                osc.type = 'triangle';
+                                osc.frequency.setValueAtTime(noteFreq * (Math.random() > 0.5 ? 1 : 2), now);
+                                gain.gain.setValueAtTime(0.25, now);
+                                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                                osc.connect(gain);
+                                gain.connect(this.ctx.destination);
+                                osc.start(now);
+                                osc.stop(now + 0.3);
+                            }
+                        } else if (this.currentTrack === 'cyber') {
+                            if (beat % 2 === 0) {
+                                const osc = this.ctx.createOscillator();
+                                const gain = this.ctx.createGain();
+                                osc.type = 'sawtooth';
+                                osc.frequency.setValueAtTime(110, now);
+                                osc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
+                                gain.gain.setValueAtTime(0.5, now);
+                                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                                osc.connect(gain);
+                                gain.connect(this.ctx.destination);
+                                osc.start(now);
+                                osc.stop(now + 0.15);
+                            }
+                            const scale = this.cyberScale;
+                            const noteFreq = scale[Math.floor(Math.random() * scale.length)];
+                            const osc = this.ctx.createOscillator();
+                            const gain = this.ctx.createGain();
+                            osc.type = 'square';
+                            osc.frequency.setValueAtTime(noteFreq, now);
+                            gain.gain.setValueAtTime(0.18, now);
+                            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                            osc.connect(gain);
+                            gain.connect(this.ctx.destination);
+                            osc.start(now);
+                            osc.stop(now + 0.2);
+                        } else if (this.currentTrack === 'zen') {
+                            if (beat % 4 === 0) {
+                                const scale = this.zenScale;
+                                const noteFreq = scale[Math.floor(Math.random() * scale.length)];
+                                const osc = this.ctx.createOscillator();
+                                const gain = this.ctx.createGain();
+                                osc.type = 'sine';
+                                osc.frequency.setValueAtTime(noteFreq, now);
+                                gain.gain.setValueAtTime(0.35, now);
+                                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                                osc.connect(gain);
+                                gain.connect(this.ctx.destination);
+                                osc.start(now);
+                                osc.stop(now + 0.6);
+                            }
+                        } else if (this.currentTrack === 'samurai') {
+                            if (beat % 2 === 0) {
+                                const osc = this.ctx.createOscillator();
+                                const gain = this.ctx.createGain();
+                                osc.type = 'triangle';
+                                osc.frequency.setValueAtTime(65, now);
+                                osc.frequency.exponentialRampToValueAtTime(30, now + 0.25);
+                                gain.gain.setValueAtTime(0.8, now);
+                                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                                osc.connect(gain);
+                                gain.connect(this.ctx.destination);
+                                osc.start(now);
+                                osc.stop(now + 0.25);
+                            }
+                            const scale = this.samuraiScale;
+                            const noteFreq = scale[Math.floor(Math.random() * scale.length)];
+                            const osc = this.ctx.createOscillator();
+                            const gain = this.ctx.createGain();
+                            osc.type = 'sawtooth';
+                            osc.frequency.setValueAtTime(noteFreq, now);
+                            gain.gain.setValueAtTime(0.2, now);
+                            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+                            osc.connect(gain);
+                            gain.connect(this.ctx.destination);
+                            osc.start(now);
+                            osc.stop(now + 0.18);
+                        } else if (this.currentTrack === 'retro') {
+                            if (beat % 2 === 0) {
+                                const scale = this.retroScale;
+                                const noteFreq = scale[(beat / 2) % scale.length];
+                                const osc = this.ctx.createOscillator();
+                                const gain = this.ctx.createGain();
+                                osc.type = 'square';
+                                osc.frequency.setValueAtTime(noteFreq, now);
+                                gain.gain.setValueAtTime(0.15, now);
+                                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                                osc.connect(gain);
+                                gain.connect(this.ctx.destination);
+                                osc.start(now);
+                                osc.stop(now + 0.12);
+                            }
+                        }
+                    }
+
+                    beat = (beat + 1) % 16;
+                    this.bgMusicTimer = setTimeout(playBeat, 140);
+                };
+
+                playBeat();
+            }
+
+            stopBgMusic() {
+                this.bgMusicPlaying = false;
+                if (this.bgMusicTimer) clearTimeout(this.bgMusicTimer);
+            }
+
+            playSlice() {
+                if (this.muted || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(700 + Math.random() * 300, now);
+                osc.frequency.exponentialRampToValueAtTime(120, now + 0.08);
+                gain.gain.setValueAtTime(0.06, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            }
+
+            playSplat() {
+                if (this.muted || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(200 + Math.random() * 120, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.14);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.14);
+            }
+
+            playExplosion() {
+                if (this.muted || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(130, now);
+                osc.frequency.exponentialRampToValueAtTime(20, now + 0.45);
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.45);
+            }
+
+            playCoin() {
+                if (this.muted || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(987.77, now);
+                osc.frequency.setValueAtTime(1318.51, now + 0.08);
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+        }
+
+        const sounds = new SoundEngine();
+
+        const KATANA_SKINS = [
+            { id: 'steel', name: 'Basic Steel', price: 0, rarity: 'common', color: '#e2e8f0', glow: '#94a3b8', desc: 'Standart yapon po\'lat qilichi.' },
+            { id: 'bamboo', name: 'Bamboo Bokken', price: 50, rarity: 'common', color: '#84cc16', glow: '#a3e635', desc: 'Yengil va mustahkam bambuk yog\'ochi.' },
+            { id: 'trainer', name: 'Dojo Trainer', price: 100, rarity: 'common', color: '#f97316', glow: '#fb923c', desc: 'Dojo mashg\'ulotlari uchun maxsus.' },
+            { id: 'emerald', name: 'Emerald Edge', price: 250, rarity: 'uncommon', color: '#10b981', glow: '#34d399', desc: 'Zumrad yog\'dusi sochuvchi o\'tkir qilich.' },
+            { id: 'poison', name: 'Poison Fang', price: 400, rarity: 'uncommon', color: '#8b5cf6', glow: '#a78bfa', desc: 'Zaharli binafsha nurli pichoq.' },
+            { id: 'cherry', name: 'Cherry Blossom', price: 600, rarity: 'uncommon', color: '#ec4899', glow: '#f472b6', desc: 'Sakura yaproqlari bilan bezatilgan.' },
+            { id: 'frost', name: 'Frost Bite', price: 1000, rarity: 'rare', color: '#38bdf8', glow: '#7dd3fc', desc: 'Muzlatuvchi sovuq nur va muz uchqunlari.' },
+            { id: 'wave', name: 'Wave Runner', price: 1500, rarity: 'rare', color: '#0284c7', glow: '#38bdf8', desc: 'Okean to\'lqinlari kuchiga ega.' },
+            { id: 'storm', name: 'Storm Breaker', price: 2000, rarity: 'rare', color: '#6366f1', glow: '#818cf8', desc: 'Momaqaldiroq chaqmoqlarini o\'ziga tortadi.' },
+            { id: 'crimson', name: 'Crimson Flame', price: 3500, rarity: 'epic', color: '#ef4444', glow: '#f87171', desc: 'Alangali qizil olov nuri va uchqunlar.' },
+            { id: 'shadow', name: 'Shadow Ninja', price: 5000, rarity: 'epic', color: '#475569', glow: '#94a3b8', desc: 'Tungi sharpadek sezdirmay kesadi.' },
+            { id: 'cyber', name: 'Cyber Neon', price: 7000, rarity: 'epic', color: '#06b6d4', glow: '#67e8f9', desc: 'Kelajak kiberpank uslubidagi katana.' },
+            { id: 'dragon', name: 'Golden Dragon', price: 10000, rarity: 'legendary', color: '#eab308', glow: '#fde047', desc: 'Oltin ajdarho nuri va yulduzlar yomg\'iri.' },
+            { id: 'phoenix', name: 'Phoenix Wing', price: 15000, rarity: 'legendary', color: '#f97316', glow: '#fb923c', desc: 'Feniks alangasi. Qayta tug\'iluvchi quvvat.' },
+            { id: 'sun', name: 'Sun God Katana', price: 20000, rarity: 'legendary', color: '#f59e0b', glow: '#fbbf24', desc: 'Quyosh ma\'budining ilohiy nuri.' },
+            { id: 'nebula', name: 'Void Nebula', price: 35000, rarity: 'mythic', color: '#d946ef', glow: '#f0abfc', desc: 'Sehrli kamalak koinot nuri va kosmik zarrachalar.' },
+            { id: 'cosmic', name: 'Cosmic Creator', price: 50000, rarity: 'mythic', color: '#a855f7', glow: '#c084fc', desc: 'Koinot yaratilishining cheksiz kuchi.' }
+        ];
+
+        let canvas, ctx;
+        let gameActive = false;
+        let gameMode = 'classic';
+        let score = 0;
+        let coins = parseInt(localStorage.getItem('fn_coins') || '0');
+        let lives = 3;
+        let timer = 90;
+        let timerInterval = null;
+
+        let activeKatanaId = localStorage.getItem('fn_active_katana') || 'steel';
+        let ownedKatanas = JSON.parse(localStorage.getItem('fn_owned_katanas') || '["steel"]');
+
+        let items = [];
+        let particles = [];
+        let bladeTrail = [];
+        let pointerDown = false;
+        let currentPointer = { x: -100, y: -100 };
+        let currentShopFilter = 'all';
+
+        let dragStartTime = 0;
+        const MAX_DRAG_DURATION = 5000; // Maksimum 5 sekund drag qilish
+
+        let isFrozen = false;
+        let lastDragEndTime = 0;
+        const DRAG_COOLDOWN_MS = 200; // 0.2 sekund cooldown
+
+        window.openShop = function() {
+            sounds.init();
+            renderShopItems();
+            document.getElementById('shopModal').classList.remove('hidden');
+            updateCoinDisplays();
+        };
+
+        window.closeShop = function() {
+            document.getElementById('shopModal').classList.add('hidden');
+        };
+
+        window.filterShop = function(rarity, ev) {
+            currentShopFilter = rarity;
+            document.querySelectorAll('.shop-tab').forEach(tab => {
+                tab.classList.remove('active', 'bg-amber-500/20', 'border-amber-500/50', 'text-amber-300');
+                tab.classList.add('bg-gray-500/10', 'text-neutral-400');
+            });
+            if (ev && ev.target) {
+                ev.target.classList.add('active', 'bg-amber-500/20', 'border-amber-500/50', 'text-amber-300');
+            }
+            renderShopItems();
+        };
+
+        window.buySkin = function(id) {
+            const skin = KATANA_SKINS.find(s => s.id === id);
+            if (!skin) return;
+
+            if (coins >= skin.price && !ownedKatanas.includes(id)) {
+                coins -= skin.price;
+                ownedKatanas.push(id);
+                activeKatanaId = id;
+                savePlayerData();
+                sounds.playCoin();
+                updateCoinDisplays();
+                renderShopItems();
+            }
+        };
+
+        window.equipSkin = function(id) {
+            if (ownedKatanas.includes(id)) {
+                activeKatanaId = id;
+                savePlayerData();
+                renderShopItems();
+            }
+        };
+
+        window.changeMusicTrack = function(track) {
+            sounds.currentTrack = track;
+            sounds.startBgMusic();
+        };
+
+        window.startGame = function(mode) {
+            sounds.init();
+            
+            if (mode === 'zen') {
+                sounds.currentTrack = 'zen';
+            } else if (mode === 'arcade') {
+                sounds.currentTrack = 'cyber';
+            } else {
+                sounds.currentTrack = 'epic';
+            }
+            const trackSelect = document.getElementById('musicTrackSelect');
+            if (trackSelect) trackSelect.value = sounds.currentTrack;
+
+            sounds.startBgMusic();
+            gameMode = mode;
+            gameActive = true;
+            score = 0;
+            lives = 3;
+            items = [];
+            particles = [];
+            bladeTrail = [];
+
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('gameOverModal').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+
+            document.getElementById('scoreText').innerText = score;
+            const modeText = document.getElementById('modeText');
+            const timerContainer = document.getElementById('timerContainer');
+            const livesContainer = document.getElementById('livesContainer');
+
+            if (mode === 'classic') {
+                modeText.innerText = "Klassik";
+                timerContainer.classList.add('hidden');
+                livesContainer.classList.remove('hidden');
+                updateLivesAndMissesUI();
+                if (timerInterval) clearInterval(timerInterval);
+            } else if (mode === 'zen') {
+                modeText.innerText = "Zen Mode";
+                timer = 90;
+                timerContainer.classList.remove('hidden');
+                livesContainer.classList.add('hidden');
+                document.getElementById('timerText').innerText = timer + 's';
+                startTimer();
+            } else if (mode === 'arcade') {
+                modeText.innerText = "Arcade Mode";
+                timer = 60;
+                timerContainer.classList.remove('hidden');
+                livesContainer.classList.add('hidden');
+                document.getElementById('timerText').innerText = timer + 's';
+                startTimer();
+            }
+            updateCoinDisplays();
+        };
+
+        window.showMenu = function() {
+            gameActive = false;
+            sounds.stopBgMusic();
+            if (timerInterval) clearInterval(timerInterval);
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('gameOverModal').classList.add('hidden');
+            document.getElementById('mainMenu').classList.remove('hidden');
+            updateCoinDisplays();
+        };
+
+        window.restartGame = function() {
+            window.startGame(gameMode);
+        };
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (!gameActive) return;
+                timer--;
+                document.getElementById('timerText').innerText = timer + 's';
+                if (timer <= 0) {
+                    endGame("VAQT TUGADI!");
+                }
+            }, 1000);
+        }
+
+        function updateLivesAndMissesUI() {
+            for (let i = 1; i <= 3; i++) {
+                const heart = document.querySelector(`.heart-${i}`);
+                if (heart) {
+                    if (i <= lives) {
+                        heart.className = `fa-solid fa-heart text-red-500 text-2xl heart-${i} animate-pulse`;
+                    } else {
+                        heart.className = `fa-solid fa-heart text-neutral-700 text-2xl heart-${i}`;
+                    }
+                }
+            }
+        }
+
+        function endGame(reason = "O'YIN TUGADI!") {
+            gameActive = false;
+            sounds.stopBgMusic();
+            if (timerInterval) clearInterval(timerInterval);
+            document.getElementById('gameOverTitle').innerText = reason;
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('finalCoins').innerText = '+' + score;
+            coins += score;
+            savePlayerData();
+            document.getElementById('gameOverModal').classList.remove('hidden');
+        }
+
+        function savePlayerData() {
+            localStorage.setItem('fn_coins', coins.toString());
+            localStorage.setItem('fn_active_katana', activeKatanaId);
+            localStorage.setItem('fn_owned_katanas', JSON.stringify(ownedKatanas));
+        }
+
+        function updateCoinDisplays() {
+            document.getElementById('coinCountHUD').innerText = coins;
+            document.getElementById('coinCountMenu').innerText = coins;
+            document.getElementById('coinCountShop').innerText = coins;
+        }
+
+        function getActiveKatana() {
+            return KATANA_SKINS.find(s => s.id === activeKatanaId) || KATANA_SKINS[0];
+        }
+
+        function renderShopItems() {
+            const grid = document.getElementById('shopGrid');
+            grid.innerHTML = '';
+
+            const filtered = currentShopFilter === 'all' 
+                ? KATANA_SKINS 
+                : KATANA_SKINS.filter(s => s.rarity === currentShopFilter);
+
+            filtered.forEach(skin => {
+                const isOwned = ownedKatanas.includes(skin.id);
+                const isActive = activeKatanaId === skin.id;
+
+                const card = document.createElement('div');
+                card.className = `glass-card p-4 rounded-2xl flex flex-col justify-between border-2 rarity-${skin.rarity} relative overflow-hidden group`;
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs uppercase font-sans font-bold tracking-widest px-2 py-0.5 rounded-md bg-white/10 text-amber-200">${skin.rarity}</span>
+                            ${isActive ? '<span class="text-xs bg-amber-500 text-black font-bold px-2 py-0.5 rounded-md">TANLANGAN</span>' : ''}
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-1">${skin.name}</h3>
+                        <p class="text-xs font-sans text-neutral-300 mb-3">${skin.desc}</p>
+                    </div>
+
+                    <div class="h-2 w-full rounded-full mb-4 shadow-sm" style="background: linear-gradient(90deg, ${skin.color}, ${skin.glow})"></div>
+
+                    <div>
+                        ${isOwned ? `
+                            <button onclick="equipSkin('${skin.id}')" ${isActive ? 'disabled' : ''} class="w-full py-2 rounded-xl text-lg font-bold ${isActive ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-default' : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'}">
+                                ${isActive ? 'O\'rnatilgan' : 'Tanlash'}
+                            </button>
+                        ` : `
+                            <button onclick="buySkin('${skin.id}')" class="w-full py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-white text-lg font-bold flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-coins text-amber-200"></i>
+                                ${skin.price}
+                            </button>
+                        `}
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            });
+        }
+
+        class Fruit {
+            constructor(type) {
+                this.type = type;
+                this.x = Math.random() * (canvas.width - 200) + 100;
+                this.y = canvas.height + 60;
+                this.radius = type === 'pineapple' ? 48 : (type === 'watermelon' ? 54 : 38);
+                
+                this.vx = (canvas.width / 2 - this.x) * (Math.random() * 0.008 + 0.004);
+                this.vy = -(Math.random() * 4 + 13.5);
+                this.gravity = 0.28;
+                
+                this.rotation = Math.random() * Math.PI * 2;
+                this.vRot = (Math.random() - 0.5) * 0.08;
+
+                this.sliced = false;
+                this.halves = null;
+            }
+
+            update() {
+                if (isFrozen) {
+                    this.x += this.vx * 0.3;
+                    this.y += this.vy * 0.3;
+                    this.vy += this.gravity * 0.3;
+                    this.rotation += this.vRot * 0.3;
+                } else {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    this.vy += this.gravity;
+                    this.rotation += this.vRot;
+                }
+
+                if (this.sliced && this.halves) {
+                    this.halves.forEach(h => {
+                        h.x += h.vx;
+                        h.y += h.vy;
+                        h.vy += this.gravity;
+                        h.rotation += h.vRot;
+                    });
+                }
+            }
+
+            draw() {
+                if (!this.sliced) {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.rotation);
+                    this.drawRealisticFruit(ctx, this.type, this.radius);
+                    ctx.restore();
+                } else if (this.halves) {
+                    this.halves.forEach(h => {
+                        ctx.save();
+                        ctx.translate(h.x, h.y);
+                        ctx.rotate(h.rotation);
+                        this.drawRealisticHalf(ctx, this.type, this.radius, h.side);
+                        ctx.restore();
+                    });
+                }
+            }
+
+            drawRealisticFruit(ctx, type, r) {
+                ctx.save();
+                // Drop Shadow
+                ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                ctx.shadowBlur = 12;
+                ctx.shadowOffsetX = 4;
+                ctx.shadowOffsetY = 8;
+
+                if (type === 'watermelon') {
+                    // Outer Rind Gradient
+                    const grad = ctx.createRadialGradient(-r/3, -r/3, 5, 0, 0, r);
+                    grad.addColorStop(0, '#22c55e');
+                    grad.addColorStop(0.7, '#15803d');
+                    grad.addColorStop(1, '#052e16');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, r, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Rind stripes
+                    ctx.strokeStyle = '#064e3b';
+                    ctx.lineWidth = 5;
+                    for (let i = -r + 8; i < r; i += 14) {
+                        ctx.beginPath();
+                        ctx.arc(0, 0, r - 2, i / r, (i + 10) / r);
+                        ctx.stroke();
+                    }
+
+                    // Specular highlight
+                    const spec = ctx.createRadialGradient(-r/2.5, -r/2.5, 2, -r/2.5, -r/2.5, r/2);
+                    spec.addColorStop(0, 'rgba(255,255,255,0.4)');
+                    spec.addColorStop(1, 'rgba(255,255,255,0)');
+                    ctx.fillStyle = spec;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, r, 0, Math.PI * 2);
+                    ctx.fill();
+
+                } else if (type === 'apple') {
+                    const grad = ctx.createRadialGradient(-r/3, -r/3, 4, 0, 0, r);
+                    grad.addColorStop(0, '#f87171');
+                    grad.addColorStop(0.6, '#dc2626');
+                    grad.addColorStop(1, '#7f1d1d');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, r, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Stem & Leaf
+                    ctx.fillStyle = '#78350f';
+                    ctx.fillRect(-2, -r - 8, 4, 10);
+                    ctx.fillStyle = '#16a34a';
+                    ctx.beginPath();
+                    ctx.ellipse(8, -r - 6, 8, 4, Math.PI/4, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Highlight
+                    const spec = ctx.createRadialGradient(-r/3, -r/3, 2, -r/3, -r/3, r/2);
+                    spec.addColorStop(0, 'rgba(255,255,255,0.5)');
+                    spec.addColorStop(1, 'rgba(255,255,255,0)');
+                    ctx.fillStyle = spec;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, r, 0, Math.PI * 2);
+                    ctx.fill();
+
+                } else if (type === 'strawberry') {
+                    const grad = ctx.createRadialGradient(0, 0, 5, 0, 0, r);
+                    grad.addColorStop(0, '#ef4444');
+                    grad.addColorStop(1, '#991b1b');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.moveTo(0, r);
+                    ctx.bezierCurveTo(r * 1.1, r * 0.3, r, -r * 0.8, 0, -r);
+                    ctx.bezierCurveTo(-r, -r * 0.8, -r * 1.1, r * 0.3, 0, r);
+                    ctx.fill();
+
+                    // Seeds & Leaves
+                    ctx.fillStyle = '#fde047';
+                    for (let a = 0; a < Math.PI * 2; a += 0.8) {
+                        ctx.fillRect(Math.cos(a) * (r * 0.5), Math.sin(a) * (r * 0.5), 2.5, 3.5);
+                    }
+                    ctx.fillStyle = '#15803d';
+                    ctx.beginPath();
+                    ctx.ellipse(0, -r, 12, 5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                } else if (type === 'banana' || type === 'freeze_banana') {
+                    const baseColor = type === 'freeze_banana' ? '#38bdf8' : '#facc15';
+                    const darkColor = type === 'freeze_banana' ? '#0284c7' : '#ca8a04';
+                    
+                    const grad = ctx.createLinearGradient(-r, -r, r, r);
+                    grad.addColorStop(0, baseColor);
+                    grad.addColorStop(1, darkColor);
+                    ctx.fillStyle = grad;
+                    
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, r * 1.3, r * 0.55, Math.PI / 5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Ridge lines
+                    ctx.strokeStyle = darkColor;
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.moveTo(-r * 1.1, -4);
+                    ctx.lineTo(r * 1.1, -4);
+                    ctx.stroke();
+
+                } else if (type === 'pineapple') {
+                    const grad = ctx.createRadialGradient(0, 0, 10, 0, 0, r);
+                    grad.addColorStop(0, '#f59e0b');
+                    grad.addColorStop(1, '#b45309');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, r * 0.85, r, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Diamond pattern
+                    ctx.strokeStyle = '#78350f';
+                    ctx.lineWidth = 2;
+                    for (let i = -r; i < r; i += 10) {
+                        ctx.beginPath();
+                        ctx.moveTo(-r, i);
+                        ctx.lineTo(r, i + 8);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(-r, i + 8);
+                        ctx.lineTo(r, i);
+                        ctx.stroke();
+                    }
+
+                    // Crown leaves
+                    ctx.fillStyle = '#15803d';
+                    for (let i = -2; i <= 2; i++) {
+                        ctx.beginPath();
+                        ctx.ellipse(i * 7, -r - 8, 7, 22, i * 0.25, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                } else if (type === 'bomb') {
+                    const grad = ctx.createRadialGradient(-10, -10, 5, 0, 0, r);
+                    grad.addColorStop(0, '#44403c');
+                    grad.addColorStop(0.6, '#1c1917');
+                    grad.addColorStop(1, '#0c0a09');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Metallic reflection
+                    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                    ctx.beginPath();
+                    ctx.arc(-r*0.3, -r*0.3, r*0.35, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Fuse and sparks
+                    ctx.strokeStyle = '#d7a152';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -r * 0.85);
+                    ctx.quadraticCurveTo(12, -r - 12, 22, -r - 20);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath();
+                    ctx.arc(22, -r - 20, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            drawRealisticHalf(ctx, type, r, side) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(0, 0, r, side === 'left' ? Math.PI / 2 : -Math.PI / 2, side === 'left' ? Math.PI * 1.5 : Math.PI / 2);
+                ctx.closePath();
+
+                if (type === 'watermelon') {
+                    const fleshGrad = ctx.createRadialGradient(0, 0, 5, 0, 0, r);
+                    fleshGrad.addColorStop(0, '#f43f5e');
+                    fleshGrad.addColorStop(0.8, '#e11d48');
+                    fleshGrad.addColorStop(1, '#15803d');
+                    ctx.fillStyle = fleshGrad;
+                    ctx.fill();
+                    ctx.lineWidth = 5;
+                    ctx.strokeStyle = '#15803d';
+                    ctx.stroke();
+
+                    // Watermelon black seeds
+                    ctx.fillStyle = '#09090b';
+                    for (let i = -r/2; i <= r/2; i += 15) {
+                        ctx.beginPath();
+                        ctx.ellipse(i, (Math.random()-0.5)*20, 4, 7, Math.PI/4, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+                } else if (type === 'apple') {
+                    const fleshGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, r);
+                    fleshGrad.addColorStop(0, '#fef08a');
+                    fleshGrad.addColorStop(0.8, '#fde047');
+                    fleshGrad.addColorStop(1, '#dc2626');
+                    ctx.fillStyle = fleshGrad;
+                    ctx.fill();
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = '#dc2626';
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = '#fde047';
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            slice() {
+                if (this.sliced) return;
+                this.sliced = true;
+
+                if (this.type === 'bomb') {
+                    sounds.playExplosion();
+                    createExplosionParticles(this.x, this.y);
+                    if (gameMode === 'classic') {
+                        lives--;
+                        updateLivesAndMissesUI();
+                        if (lives <= 0) {
+                            endGame("3 TA BOMBA PORTLADI!");
+                        }
+                    } else {
+                        score = Math.max(0, score - 10);
+                        document.getElementById('scoreText').innerText = score;
+                    }
+                    return;
+                }
+
+                sounds.playSplat();
+                createSplatParticles(this.x, this.y, this.type);
+
+                if (this.type === 'freeze_banana') {
+                    isFrozen = true;
+                    setTimeout(() => isFrozen = false, 5000);
+                }
+
+                score += 1;
+                coins += 1;
+                savePlayerData();
+                updateCoinDisplays();
+
+                document.getElementById('scoreText').innerText = score;
+
+                this.halves = [
+                    { x: this.x - 12, y: this.y, vx: -3.5 - Math.random() * 2, vy: this.vy, rotation: this.rotation, vRot: -0.12, side: 'left' },
+                    { x: this.x + 12, y: this.y, vx: 3.5 + Math.random() * 2, vy: this.vy, rotation: this.rotation, vRot: 0.12, side: 'right' }
+                ];
+            }
+        }
+
+        function createSplatParticles(x, y, type) {
+            let color = '#ef4444';
+            if (type === 'apple') color = '#fef08a';
+            if (type === 'banana') color = '#facc15';
+            if (type === 'freeze_banana') color = '#38bdf8';
+            if (type === 'watermelon') color = '#f43f5e';
+
+            for (let i = 0; i < 24; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 14,
+                    vy: (Math.random() - 0.5) * 14,
+                    radius: Math.random() * 7 + 2,
+                    color: color,
+                    alpha: 1,
+                    decay: Math.random() * 0.025 + 0.008
+                });
+            }
+        }
+
+        function createExplosionParticles(x, y) {
+            for (let i = 0; i < 45; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 22,
+                    vy: (Math.random() - 0.5) * 22,
+                    radius: Math.random() * 9 + 3,
+                    color: Math.random() > 0.5 ? '#ef4444' : '#f97316',
+                    alpha: 1,
+                    decay: 0.02
+                });
+            }
+        }
+
+        function initEvents() {
+            window.addEventListener('resize', resizeCanvas);
+
+            canvas.addEventListener('pointerdown', (e) => {
+                if (e.button === 0) {
+                    // Cooldown tekshiruvi (0.2 sekund)
+                    if (Date.now() - lastDragEndTime < DRAG_COOLDOWN_MS) {
+                        return;
+                    }
+                    pointerDown = true;
+                    dragStartTime = Date.now();
+                    canvas.setPointerCapture(e.pointerId);
+                    updatePointerPos(e);
+                    sounds.playSlice();
+                }
+            });
+
+            canvas.addEventListener('pointermove', (e) => {
+                if (pointerDown) {
+                    // Maksimum 5 sekund drag qilish limitini tekshirish
+                    if (Date.now() - dragStartTime > MAX_DRAG_DURATION) {
+                        pointerDown = false;
+                        lastDragEndTime = Date.now();
+                        bladeTrail = [];
+                        return;
+                    }
+
+                    updatePointerPos(e);
+                    bladeTrail.push({ x: currentPointer.x, y: currentPointer.y, time: Date.now() });
+                    checkSlices();
+                }
+            });
+
+            canvas.addEventListener('pointerup', () => {
+                if (pointerDown) {
+                    pointerDown = false;
+                    lastDragEndTime = Date.now();
+                }
+            });
+
+            canvas.addEventListener('pointercancel', () => {
+                if (pointerDown) {
+                    pointerDown = false;
+                    lastDragEndTime = Date.now();
+                }
+            });
+        }
+
+        function updatePointerPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            currentPointer.x = e.clientX - rect.left;
+            currentPointer.y = e.clientY - rect.top;
+        }
+
+        function checkSlices() {
+            items.forEach(item => {
+                if (!item.sliced) {
+                    const dist = Math.hypot(item.x - currentPointer.x, item.y - currentPointer.y);
+                    if (dist < item.radius + 38) {
+                        item.slice();
+                    }
+                }
+            });
+        }
+
+        function drawKatanaAndTrail() {
+            const katana = getActiveKatana();
+
+            const now = Date.now();
+
+            if (pointerDown && (now - dragStartTime > MAX_DRAG_DURATION)) {
+                pointerDown = false;
+                lastDragEndTime = Date.now();
+                bladeTrail = [];
+            }
+
+            bladeTrail = bladeTrail.filter(p => now - p.time < 200);
+
+            if (bladeTrail.length > 1) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(bladeTrail[0].x, bladeTrail[0].y);
+                for (let i = 1; i < bladeTrail.length; i++) {
+                    ctx.lineTo(bladeTrail[i].x, bladeTrail[i].y);
+                }
+                ctx.strokeStyle = katana.glow;
+                ctx.lineWidth = 14;
+                ctx.lineCap = 'round';
+                ctx.shadowColor = katana.glow;
+                ctx.shadowBlur = 25;
+                ctx.stroke();
+
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 5;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            if (pointerDown || bladeTrail.length > 0) {
+                ctx.save();
+                ctx.translate(currentPointer.x, currentPointer.y);
+
+                let angle = -Math.PI / 4;
+                if (bladeTrail.length >= 2) {
+                    const p1 = bladeTrail[bladeTrail.length - 2];
+                    const p2 = bladeTrail[bladeTrail.length - 1];
+                    angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                }
+                ctx.rotate(angle);
+
+                // Katana Blade with Metallic Gradient and Hamon
+                const bladeGrad = ctx.createLinearGradient(0, -6, 0, 6);
+                bladeGrad.addColorStop(0, '#ffffff');
+                bladeGrad.addColorStop(0.5, katana.color);
+                bladeGrad.addColorStop(1, '#94a3b8');
+
+                ctx.fillStyle = bladeGrad;
+                ctx.beginPath();
+                ctx.moveTo(0, -4);
+                ctx.quadraticCurveTo(45, -2, 95, 0);
+                ctx.quadraticCurveTo(45, 2, 0, 4);
+                ctx.closePath();
+                ctx.fill();
+
+                // Razor sharp edge glow
+                ctx.strokeStyle = katana.glow;
+                ctx.lineWidth = 2;
+                ctx.shadowColor = katana.glow;
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.moveTo(0, -4);
+                ctx.lineTo(95, 0);
+                ctx.stroke();
+
+                // Detailed Tsuba (Guard)
+                ctx.fillStyle = '#b45309';
+                ctx.beginPath();
+                ctx.ellipse(-2, 0, 5, 14, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Tsuka (Handle with traditional diamond wrap / tsukamaki)
+                ctx.fillStyle = '#1c1917';
+                ctx.fillRect(-22, -6, 20, 12);
+                
+                ctx.strokeStyle = '#fde047';
+                ctx.lineWidth = 1.5;
+                for (let hx = -20; hx < -4; hx += 5) {
+                    ctx.beginPath();
+                    ctx.moveTo(hx, -6);
+                    ctx.lineTo(hx + 3, 6);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(hx + 3, -6);
+                    ctx.lineTo(hx, 6);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        function spawnItems() {
+            if (!gameActive) return;
+
+            if (Math.random() < 0.04) {
+                const types = ['watermelon', 'apple', 'strawberry', 'banana', 'pineapple'];
+                if (gameMode !== 'zen' && Math.random() < 0.18) {
+                    types.push('bomb');
+                }
+                if (gameMode === 'arcade' && Math.random() < 0.1) {
+                    types.push('freeze_banana');
+                }
+
+                const selected = types[Math.floor(Math.random() * types.length)];
+                items.push(new Fruit(selected));
+            }
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (gameActive) {
+                spawnItems();
+
+                items.forEach((item, index) => {
+                    item.update();
+                    item.draw();
+
+                    if (item.y > canvas.height + 120) {
+                        items.splice(index, 1);
+                    }
+                });
+
+                particles.forEach((p, index) => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.alpha -= p.decay;
+
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, p.alpha);
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+
+                    if (p.alpha <= 0) {
+                        particles.splice(index, 1);
+                    }
+                });
+
+                drawKatanaAndTrail();
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        window.onload = function() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            resizeCanvas();
+            initEvents();
+            updateCoinDisplays();
+            animate();
+        };
+    </script>
+</body>
+</html>
